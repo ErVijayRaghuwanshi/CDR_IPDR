@@ -1,0 +1,1242 @@
+[
+    {
+        "rule_id": "R001",
+        "name": "High-Frequency Communication Between Two Parties",
+        "description": "Detects unusually frequent calls or messages between two numbers within a short time window.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "FREQUENCY_THRESHOLD": 50,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "communication-pattern",
+            "coordination"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS TOTAL_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING TOTAL_CALLS > $FREQUENCY_THRESHOLD"
+    },
+    {
+        "rule_id": "R002",
+        "name": "Unusual Call Duration",
+        "description": "Detects abnormally long or short calls.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER",
+            "DURATION"
+        ],
+        "default_params": {
+            "MIN_DURATION_SEC": 3,
+            "MAX_DURATION_SEC": 1200
+        },
+        "tags": [
+            "anomaly-duration",
+            "covert-communication"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, DURATION FROM cdr WHERE DURATION < $MIN_DURATION_SEC OR DURATION > $MAX_DURATION_SEC"
+    },
+    {
+        "rule_id": "R003",
+        "name": "Communication With Known Blacklisted Numbers",
+        "description": "Flags calls or messages to/from numbers on a watchlist.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER"
+        ],
+        "default_params": {
+            "WATCHLIST_TABLE": "watchlist"
+        },
+        "tags": [
+            "watchlist",
+            "blacklisted"
+        ],
+        "sql_template": "SELECT c.MOBILENUMBER, c.B_MOBILENUMBER, w.WATCHLIST_ID AS MATCHED_WATCHLIST_ID FROM cdr c JOIN $WATCHLIST_TABLE w ON c.MOBILENUMBER = w.NUMBER OR c.B_MOBILENUMBER = w.NUMBER"
+    },
+    {
+        "rule_id": "R004",
+        "name": "Frequent Cell Tower Location Changes",
+        "description": "Detects rapid movement across large distances.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "BTS",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "LOCATION_CHANGE_THRESHOLD": 5,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "mobility-pattern",
+            "evasion"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT BTS) AS TOTAL_BTS_CHANGES FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING TOTAL_BTS_CHANGES > $LOCATION_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R005",
+        "name": "SIM Swap Detection",
+        "description": "Detects multiple IMEIs for same mobile number in a short time window, indicating a potential SIM swap.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "IMEI",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "IMEI_CHANGE_THRESHOLD": 2,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "fraud",
+            "identity-change",
+            "device"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT IMEI) AS CHANGE_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING CHANGE_COUNT > $IMEI_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R006",
+        "name": "High Volume of International Calls",
+        "description": "Flags unusual spikes in calls to foreign destinations, often used for organized crime.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DSTCOUNTRY",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "FOREIGN_CALL_THRESHOLD": 10,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "international-traffic",
+            "anomaly",
+            "communication"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, DSTCOUNTRY, COUNT(*) AS TOTAL_FOREIGN_CALLS FROM cdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, DSTCOUNTRY HAVING TOTAL_FOREIGN_CALLS > $FOREIGN_CALL_THRESHOLD"
+    },
+    {
+        "rule_id": "R007",
+        "name": "Access to Restricted Online Services",
+        "description": "Detects access to restricted or illegal domains/apps from the IPDR data.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DOMAIN",
+            "APPCATEGORY"
+        ],
+        "default_params": {
+            "RESTRICTED_TABLE": "restricted_list"
+        },
+        "tags": [
+            "content-monitoring",
+            "illegal-services",
+            "ip"
+        ],
+        "sql_template": "SELECT i.MOBILENUMBER, i.DOMAIN, i.APPCATEGORY FROM ipdr i JOIN $RESTRICTED_TABLE r ON i.DOMAIN = r.DOMAIN OR i.APPCATEGORY = r.APPCATEGORY"
+    },
+    {
+        "rule_id": "R008",
+        "name": "Multiple Devices Using Same IP",
+        "description": "Detects when multiple unique IMEIs use the same IP address in a short time, indicating a potential hotspot or shared connection for coordinated activity.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "SERVERIP",
+            "IMEI",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "DEVICE_COUNT_THRESHOLD": 3,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "coordination",
+            "hotspot",
+            "ip",
+            "device"
+        ],
+        "sql_template": "SELECT SERVERIP, COUNT(DISTINCT IMEI) AS DEVICE_COUNT FROM ipdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY SERVERIP HAVING DEVICE_COUNT > $DEVICE_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R009",
+        "name": "Suspicious VoIP Traffic",
+        "description": "Detects encrypted or obfuscated VoIP calls outside of normal business hours, which may indicate covert communication.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "APPLICATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "ALLOWED_HOURS_START": 8,
+            "ALLOWED_HOURS_END": 22
+        },
+        "tags": [
+            "voip",
+            "covert",
+            "communication"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, APPLICATION FROM ipdr WHERE APPLICATION = 'VoIP' AND (HOUR(TRANSACTIONSTARTTIME) < $ALLOWED_HOURS_START OR HOUR(TRANSACTIONSTARTTIME) > $ALLOWED_HOURS_END)"
+    },
+    {
+        "rule_id": "R010",
+        "name": "Repeated Contact With Foreign IP Addresses",
+        "description": "Flags repeated communications with the same foreign server IP, which could signal a command-and-control connection.",
+        "created_at": "2025-08-09T00:00:00Z",
+        "modified_at": "2025-08-09T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "SERVERIP",
+            "DSTCOUNTRY"
+        ],
+        "default_params": {
+            "REPEAT_CONTACT_THRESHOLD": 20,
+            "TIME_WINDOW_DAYS": 7
+        },
+        "tags": [
+            "foreign-connection",
+            "anomaly",
+            "ip"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, SERVERIP, DSTCOUNTRY FROM ipdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER, SERVERIP, DSTCOUNTRY HAVING COUNT(*) > $REPEAT_CONTACT_THRESHOLD"
+    },
+    {
+        "rule_id": "R011",
+        "name": "Communication During Off-Hours",
+        "description": "Detects calls or messages between parties that occur outside of typical communication hours.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "START_HOUR": 23,
+            "END_HOUR": 6
+        },
+        "tags": [
+            "communication-pattern",
+            "covert"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, TRANSACTIONSTARTTIME FROM cdr WHERE (HOUR(TRANSACTIONSTARTTIME) >= $START_HOUR OR HOUR(TRANSACTIONSTARTTIME) <= $END_HOUR)"
+    },
+    {
+        "rule_id": "R012",
+        "name": "Device Spoofing Detection",
+        "description": "Identifies an IMEI being used by multiple different IMSIs within a short period, which could indicate device cloning.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMEI",
+            "IMSI",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "IMSI_CHANGE_THRESHOLD": 2,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "fraud",
+            "device",
+            "identity-change"
+        ],
+        "sql_template": "SELECT IMEI, COUNT(DISTINCT IMSI) AS CHANGE_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY IMEI HAVING CHANGE_COUNT > $IMSI_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R013",
+        "name": "Suspicious Data Usage",
+        "description": "Flags unusual spikes in data consumption that deviate from a user's normal baseline.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "ML",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DATAUSAGE"
+        ],
+        "default_params": {
+            "USAGE_ANOMALY_THRESHOLD": 3
+        },
+        "tags": [
+            "anomaly",
+            "data-usage",
+            "ml"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, AVG(DATAUSAGE) AS AVG_DAILY_USAGE FROM ipdr GROUP BY MOBILENUMBER HAVING AVG_DAILY_USAGE > $USAGE_ANOMALY_THRESHOLD * (SELECT AVG(DATAUSAGE) FROM ipdr)"
+    },
+    {
+        "rule_id": "R014",
+        "name": "Geographic Area Exclusion",
+        "description": "Detects activity from an identifier in a geographic area where it has no known history or reason to be.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "ML",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "LOCATION"
+        ],
+        "default_params": {
+            "KNOWN_LOCATIONS_TABLE": "known_locations"
+        },
+        "tags": [
+            "mobility",
+            "geofence",
+            "ml"
+        ],
+        "sql_template": "SELECT c.MOBILENUMBER, c.LOCATION FROM cdr c LEFT JOIN $KNOWN_LOCATIONS_TABLE kl ON c.MOBILENUMBER = kl.MOBILENUMBER WHERE c.LOCATION NOT IN (kl.LOCATION)"
+    },
+    {
+        "rule_id": "R015",
+        "name": "Zero-Duration Calls",
+        "description": "Flags calls with a duration of zero, which can be a sign of testing or a signaling mechanism between parties.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DURATION"
+        ],
+        "default_params": {},
+        "tags": [
+            "communication",
+            "covert",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER FROM cdr WHERE DURATION = 0"
+    },
+    {
+        "rule_id": "R016",
+        "name": "Repeated Short Calls to Multiple Numbers",
+        "description": "Detects a pattern of a single number making many very short calls to a large number of different numbers.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER",
+            "DURATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SHORT_CALL_DURATION": 30,
+            "NUMBER_COUNT_THRESHOLD": 50,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "communication-pattern",
+            "scanning"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT B_MOBILENUMBER) AS unique_numbers FROM cdr WHERE DURATION < $SHORT_CALL_DURATION AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING unique_numbers > $NUMBER_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R017",
+        "name": "Abnormal Data Session Duration",
+        "description": "Flags IP sessions that are unusually long or short, which could indicate a bot or a burst of malicious activity.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DURATION"
+        ],
+        "default_params": {
+            "MIN_DURATION_SEC": 5,
+            "MAX_DURATION_SEC": 3600
+        },
+        "tags": [
+            "anomaly",
+            "ip"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, DURATION FROM ipdr WHERE DURATION < $MIN_DURATION_SEC OR DURATION > $MAX_DURATION_SEC"
+    },
+    {
+        "rule_id": "R018",
+        "name": "Access to High-Risk Countries",
+        "description": "Detects internet traffic to or from countries known for high levels of cybercrime or illegal activity.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DSTCOUNTRY"
+        ],
+        "default_params": {
+            "HIGH_RISK_COUNTRIES": [
+                "RU",
+                "CN",
+                "KP"
+            ]
+        },
+        "tags": [
+            "geography",
+            "ip",
+            "fraud"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, DSTCOUNTRY FROM ipdr WHERE DSTCOUNTRY IN ($HIGH_RISK_COUNTRIES)"
+    },
+    {
+        "rule_id": "R019",
+        "name": "IMEI-IMSI Pair Anomaly",
+        "description": "Detects when an IMEI and IMSI pair that have not been seen together before suddenly appear, which could be a sign of a new, unregistered device being activated with an existing SIM or vice-versa.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "ML",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMEI",
+            "IMSI"
+        ],
+        "default_params": {},
+        "tags": [
+            "device",
+            "identity-change",
+            "ml"
+        ],
+        "sql_template": "SELECT IMEI, IMSI FROM cdr WHERE (IMEI, IMSI) NOT IN (SELECT IMEI, IMSI FROM historical_data)"
+    },
+    {
+        "rule_id": "R020",
+        "name": "Frequent IP Address Changes",
+        "description": "Identifies a single IMEI or mobile number that uses a large number of different IP addresses in a short time, which may indicate a proxy or VPN hopping for evasion.",
+        "created_at": "2025-08-15T00:00:00Z",
+        "modified_at": "2025-08-15T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "SERVERIP",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "IP_CHANGE_THRESHOLD": 50,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "ip",
+            "evasion",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT SERVERIP) AS UNIQUE_IPS FROM ipdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING UNIQUE_IPS > $IP_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R021",
+        "name": "Sequential Calls to Incrementing Numbers",
+        "description": "Detects a pattern where a number calls sequentially increasing or decreasing phone numbers, often used in war-dialing or scanning.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "CALL_COUNT_THRESHOLD": 20,
+            "TIME_WINDOW_HOURS": 2
+        },
+        "tags": [
+            "scanning",
+            "communication-pattern",
+            "fraud"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS SEQ_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) AND ABS(CAST(SUBSTRING(B_MOBILENUMBER, -4) AS SIGNED) - LAG(CAST(SUBSTRING(B_MOBILENUMBER, -4) AS SIGNED)) OVER (PARTITION BY MOBILENUMBER ORDER BY TRANSACTIONSTARTTIME)) = 1 GROUP BY MOBILENUMBER HAVING SEQ_CALLS > $CALL_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R022",
+        "name": "Sudden Increase in Outgoing SMS Volume",
+        "description": "Flags mobile numbers sending an unusually high number of SMS messages in a short period compared to their baseline.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "ML",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "TRANSACTIONTYPE",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SMS_SPIKE_MULTIPLIER": 5,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "sms",
+            "spam",
+            "ml",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS SMS_COUNT FROM cdr WHERE TRANSACTIONTYPE = 'SMS' AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING SMS_COUNT > $SMS_SPIKE_MULTIPLIER * (SELECT AVG(COUNT(*)) FROM cdr WHERE TRANSACTIONTYPE = 'SMS' GROUP BY MOBILENUMBER)"
+    },
+    {
+        "rule_id": "R023",
+        "name": "Multiple SIM Cards in Same Device",
+        "description": "Identifies a single IMEI being used with multiple SIM cards in a short period, which may indicate fraudulent SIM testing.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMEI",
+            "IMSI",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SIM_COUNT_THRESHOLD": 3,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "fraud",
+            "device",
+            "identity-change"
+        ],
+        "sql_template": "SELECT IMEI, COUNT(DISTINCT IMSI) AS SIM_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY IMEI HAVING SIM_COUNT > $SIM_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R024",
+        "name": "Burst of Short Data Sessions",
+        "description": "Detects a sudden burst of multiple short IP sessions, which can be a bot heartbeat or automated data exfiltration.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DURATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "MAX_SESSION_DURATION": 10,
+            "BURST_COUNT_THRESHOLD": 20,
+            "TIME_WINDOW_MINUTES": 30
+        },
+        "tags": [
+            "anomaly",
+            "bot",
+            "ip"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS SHORT_SESSIONS FROM ipdr WHERE DURATION < $MAX_SESSION_DURATION AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING SHORT_SESSIONS > $BURST_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R025",
+        "name": "Access to Newly Registered Domains",
+        "description": "Flags connections to domains that have been registered very recently, often used in phishing or malware campaigns.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DOMAIN"
+        ],
+        "default_params": {
+            "DOMAIN_REGISTRATION_TABLE": "domain_whois",
+            "NEW_DOMAIN_DAYS": 7
+        },
+        "tags": [
+            "dns",
+            "malware",
+            "phishing"
+        ],
+        "sql_template": "SELECT i.MOBILENUMBER, i.DOMAIN FROM ipdr i JOIN $DOMAIN_REGISTRATION_TABLE d ON i.DOMAIN = d.DOMAIN WHERE DATEDIFF(CURRENT_DATE, d.REGISTRATION_DATE) <= $NEW_DOMAIN_DAYS"
+    },
+    {
+        "rule_id": "R026",
+        "name": "Repeated Failed Call Attempts",
+        "description": "Detects multiple failed call attempts to the same number within a short time, which can indicate harassment or probing.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "B_MOBILENUMBER",
+            "CALLSTATUS",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "FAIL_COUNT_THRESHOLD": 5,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "harassment",
+            "call-failure",
+            "communication-pattern"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS FAIL_COUNT FROM cdr WHERE CALLSTATUS = 'FAILED' AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING FAIL_COUNT > $FAIL_COUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R027",
+        "name": "High Volume of Roaming Calls",
+        "description": "Flags users making an unusually high number of calls while roaming abroad.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "ROAMINGSTATUS",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "ROAMING_CALL_THRESHOLD": 20,
+            "TIME_WINDOW_DAYS": 7
+        },
+        "tags": [
+            "roaming",
+            "international",
+            "fraud"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS ROAMING_CALLS FROM cdr WHERE ROAMINGSTATUS = 'YES' AND TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER HAVING ROAMING_CALLS > $ROAMING_CALL_THRESHOLD"
+    },
+    {
+        "rule_id": "R028",
+        "name": "SIM Box Fraud Detection",
+        "description": "Identifies numbers making a high volume of short international calls from multiple SIMs in the same cell tower.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "BTS",
+            "DSTCOUNTRY",
+            "DURATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SHORT_CALL_DURATION": 60,
+            "INTERNATIONAL_CALL_THRESHOLD": 100,
+            "TIME_WINDOW_HOURS": 24
+        },
+        "tags": [
+            "fraud",
+            "international",
+            "communication-pattern"
+        ],
+        "sql_template": "SELECT BTS, COUNT(*) AS INTL_SHORT_CALLS FROM cdr WHERE DSTCOUNTRY <> 'LOCAL' AND DURATION < $SHORT_CALL_DURATION AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY BTS HAVING INTL_SHORT_CALLS > $INTERNATIONAL_CALL_THRESHOLD"
+    },
+    {
+        "rule_id": "R029",
+        "name": "Multiple VPN Providers in Short Time",
+        "description": "Flags a device connecting to multiple distinct VPN provider IP ranges in a short time, indicating potential obfuscation.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "SERVERIP",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "VPN_PROVIDERS_TABLE": "vpn_ip_ranges",
+            "VPN_CHANGE_THRESHOLD": 3,
+            "TIME_WINDOW_HOURS": 6
+        },
+        "tags": [
+            "vpn",
+            "evasion",
+            "ip"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT v.PROVIDER) AS VPN_PROVIDERS_USED FROM ipdr i JOIN $VPN_PROVIDERS_TABLE v ON i.SERVERIP BETWEEN v.START_IP AND v.END_IP WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING VPN_PROVIDERS_USED > $VPN_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R030",
+        "name": "Data Usage in Airplane Mode Hours",
+        "description": "Flags mobile data usage during hours when the device is usually inactive or offline, possibly indicating malware or background data theft.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "IPDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DATAUSAGE",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "LOW_ACTIVITY_START": 1,
+            "LOW_ACTIVITY_END": 5,
+            "MIN_USAGE_MB": 50
+        },
+        "tags": [
+            "data-usage",
+            "anomaly",
+            "malware"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, SUM(DATAUSAGE) AS TOTAL_USAGE FROM ipdr WHERE HOUR(TRANSACTIONSTARTTIME) >= $LOW_ACTIVITY_START AND HOUR(TRANSACTIONSTARTTIME) <= $LOW_ACTIVITY_END GROUP BY MOBILENUMBER HAVING TOTAL_USAGE > $MIN_USAGE_MB"
+    },
+    {
+        "rule_id": "R031",
+        "name": "Sudden Increase in Call Duration",
+        "description": "Detects a sharp rise in the average duration of calls for a subscriber compared to their baseline.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "CALLDURATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "PERCENT_INCREASE_THRESHOLD": 200,
+            "TIME_WINDOW_DAYS": 7
+        },
+        "tags": [
+            "usage-pattern",
+            "anomaly",
+            "fraud-detection"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, AVG(CALLDURATION) AS AVG_DURATION FROM cdr WHERE TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER HAVING AVG_DURATION > (SELECT AVG(CALLDURATION) * (1 + $PERCENT_INCREASE_THRESHOLD/100) FROM cdr WHERE MOBILENUMBER = cdr.MOBILENUMBER)"
+    },
+    {
+        "rule_id": "R032",
+        "name": "Cross-Border SIM Swapping",
+        "description": "Identifies SIMs that appear in two or more countries within a short time frame.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMSI",
+            "COUNTRYCODE",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "TIME_WINDOW_HOURS": 6
+        },
+        "tags": [
+            "roaming",
+            "fraud",
+            "location-anomaly"
+        ],
+        "sql_template": "SELECT IMSI, COUNT(DISTINCT COUNTRYCODE) AS COUNTRY_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY IMSI HAVING COUNTRY_COUNT > 1"
+    },
+    {
+        "rule_id": "R033",
+        "name": "High-Value Data Usage in Off-Peak Hours",
+        "description": "Flags subscribers with unusually large data consumption during off-peak times.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DATAUSAGE",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "DATA_THRESHOLD_MB": 5000,
+            "OFF_PEAK_START": "00:00:00",
+            "OFF_PEAK_END": "06:00:00"
+        },
+        "tags": [
+            "data-usage",
+            "network-load",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, SUM(DATAUSAGE) AS TOTAL_DATA FROM cdr WHERE CAST(TRANSACTIONSTARTTIME AS TIME) BETWEEN '$OFF_PEAK_START' AND '$OFF_PEAK_END' GROUP BY MOBILENUMBER HAVING TOTAL_DATA > $DATA_THRESHOLD_MB"
+    },
+    {
+        "rule_id": "R034",
+        "name": "Multiple Failed Authentication Attempts",
+        "description": "Detects when a subscriber repeatedly fails authentication within a short period.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "AuthLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "AUTH_STATUS",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "FAIL_THRESHOLD": 5,
+            "TIME_WINDOW_MINUTES": 15
+        },
+        "tags": [
+            "security",
+            "fraud",
+            "login-anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS FAIL_COUNT FROM authlogs WHERE AUTH_STATUS = 'FAILED' AND TRANSACTIONSTARTTIME >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING FAIL_COUNT > $FAIL_THRESHOLD"
+    },
+    {
+        "rule_id": "R035",
+        "name": "IMEI Cloning Detection",
+        "description": "Flags cases where the same IMEI is used with multiple subscriber numbers in different locations.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMEI",
+            "MOBILENUMBER",
+            "CELL_ID",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "TIME_WINDOW_DAYS": 1,
+            "LOCATION_THRESHOLD": 2
+        },
+        "tags": [
+            "device-fraud",
+            "identity-theft",
+            "cloning"
+        ],
+        "sql_template": "SELECT IMEI, COUNT(DISTINCT CELL_ID) AS LOCATION_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY IMEI HAVING LOCATION_COUNT > $LOCATION_THRESHOLD"
+    },
+    {
+        "rule_id": "R036",
+        "name": "Call Forwarding Fraud Detection",
+        "description": "Identifies suspicious call forwarding setups to international or premium-rate numbers.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "NetworkConfig",
+        "required_fields": [
+            "MOBILENUMBER",
+            "FORWARD_TO",
+            "SETUPTIME"
+        ],
+        "default_params": {
+            "HIGH_RISK_PREFIXES": [
+                "+880",
+                "+234",
+                "+971"
+            ]
+        },
+        "tags": [
+            "call-forwarding",
+            "fraud",
+            "premium-rate"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, FORWARD_TO FROM networkconfig WHERE FORWARD_TO LIKE ANY ($HIGH_RISK_PREFIXES)"
+    },
+    {
+        "rule_id": "R037",
+        "name": "Frequent Roaming Switches",
+        "description": "Flags subscribers that switch roaming networks multiple times in a short duration.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "RoamingLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "ROAMING_OPERATOR",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SWITCH_THRESHOLD": 3,
+            "TIME_WINDOW_HOURS": 12
+        },
+        "tags": [
+            "roaming",
+            "network-switch",
+            "fraud"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT ROAMING_OPERATOR) AS SWITCH_COUNT FROM roaminglogs WHERE TRANSACTIONSTARTTIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING SWITCH_COUNT > $SWITCH_THRESHOLD"
+    },
+    {
+        "rule_id": "R038",
+        "name": "Shared Device Multiple Accounts",
+        "description": "Identifies devices (IMEI) used by multiple unrelated accounts.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "IMEI",
+            "MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "ACCOUNT_THRESHOLD": 5,
+            "TIME_WINDOW_DAYS": 30
+        },
+        "tags": [
+            "device-sharing",
+            "fraud",
+            "account-compromise"
+        ],
+        "sql_template": "SELECT IMEI, COUNT(DISTINCT MOBILENUMBER) AS ACCOUNT_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY IMEI HAVING ACCOUNT_COUNT > $ACCOUNT_THRESHOLD"
+    },
+    {
+        "rule_id": "R039",
+        "name": "Mass SMS Sending",
+        "description": "Detects numbers sending large volumes of SMS messages in a short time frame.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "SMSLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SMS_THRESHOLD": 200,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "spam",
+            "sms-fraud",
+            "messaging"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS SMS_COUNT FROM smslogs WHERE TRANSACTIONSTARTTIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING SMS_COUNT > $SMS_THRESHOLD"
+    },
+    {
+        "rule_id": "R040",
+        "name": "Rapid IMEI Change",
+        "description": "Flags subscribers who change their device IMEI multiple times in a day.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "IMEI",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "IMEI_CHANGE_THRESHOLD": 2,
+            "TIME_WINDOW_DAYS": 1
+        },
+        "tags": [
+            "device-fraud",
+            "identity-change"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT IMEI) AS IMEI_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER HAVING IMEI_COUNT > $IMEI_CHANGE_THRESHOLD"
+    },
+    {
+        "rule_id": "R041",
+        "name": "International Call Burst",
+        "description": "Identifies short bursts of high-volume international calls from a single number.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "CALLDESTINATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "CALL_THRESHOLD": 10,
+            "TIME_WINDOW_MINUTES": 30
+        },
+        "tags": [
+            "international-calls",
+            "fraud",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS CALL_COUNT FROM cdr WHERE CALLDESTINATION NOT LIKE '+1%' AND TRANSACTIONSTARTTIME >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING CALL_COUNT > $CALL_THRESHOLD"
+    },
+    {
+        "rule_id": "R042",
+        "name": "Simultaneous Logins from Different Countries",
+        "description": "Detects the same account logging in from two different countries within a short window.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "LoginLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "COUNTRYCODE",
+            "LOGINTIME"
+        ],
+        "default_params": {
+            "TIME_WINDOW_HOURS": 2
+        },
+        "tags": [
+            "security",
+            "account-takeover",
+            "location-anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT COUNTRYCODE) AS COUNTRY_COUNT FROM loginlogs WHERE LOGINTIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING COUNTRY_COUNT > 1"
+    },
+    {
+        "rule_id": "R043",
+        "name": "Multiple Data Package Purchases in Short Time",
+        "description": "Flags users purchasing multiple large data packages in quick succession.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "BillingLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "PACKAGE_TYPE",
+            "PURCHASETIME"
+        ],
+        "default_params": {
+            "PURCHASE_THRESHOLD": 3,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "billing-fraud",
+            "anomaly",
+            "data-packages"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS PURCHASE_COUNT FROM billinglogs WHERE PACKAGE_TYPE = 'DATA' AND PURCHASETIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING PURCHASE_COUNT > $PURCHASE_THRESHOLD"
+    },
+    {
+        "rule_id": "R044",
+        "name": "Suspicious Network Access Patterns",
+        "description": "Detects devices repeatedly connecting and disconnecting from the network in short intervals.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "NetworkLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "EVENT_TYPE",
+            "EVENTTIME"
+        ],
+        "default_params": {
+            "RECONNECT_THRESHOLD": 10,
+            "TIME_WINDOW_MINUTES": 30
+        },
+        "tags": [
+            "network",
+            "fraud",
+            "connectivity"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS RECONNECT_COUNT FROM networklogs WHERE EVENT_TYPE = 'CONNECT' AND EVENTTIME >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING RECONNECT_COUNT > $RECONNECT_THRESHOLD"
+    },
+    {
+        "rule_id": "R045",
+        "name": "Premium SMS Fraud",
+        "description": "Identifies large volumes of messages sent to premium-rate short codes.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "SMSLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "DESTINATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "SMS_THRESHOLD": 20,
+            "TIME_WINDOW_HOURS": 1
+        },
+        "tags": [
+            "premium-sms",
+            "fraud",
+            "billing"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS SMS_COUNT FROM smslogs WHERE DESTINATION LIKE '9%' AND TRANSACTIONSTARTTIME >= DATEADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING SMS_COUNT > $SMS_THRESHOLD"
+    },
+    {
+        "rule_id": "R046",
+        "name": "Fake Cell Tower Connection",
+        "description": "Detects devices connecting to cell towers not registered in the official network list.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CellTowerLogs",
+        "required_fields": [
+            "CELL_ID",
+            "MOBILENUMBER",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "UNREGISTERED_TOWER_LIST": []
+        },
+        "tags": [
+            "security",
+            "network",
+            "imsi-catcher"
+        ],
+        "sql_template": "SELECT CELL_ID, MOBILENUMBER FROM celltowerlogs WHERE CELL_ID NOT IN ($UNREGISTERED_TOWER_LIST)"
+    },
+    {
+        "rule_id": "R047",
+        "name": "Short Duration High Frequency Calls",
+        "description": "Flags numbers making many short-duration calls in a small time window.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "CDR",
+        "required_fields": [
+            "MOBILENUMBER",
+            "CALLDURATION",
+            "TRANSACTIONSTARTTIME"
+        ],
+        "default_params": {
+            "CALL_THRESHOLD": 30,
+            "MAX_CALL_DURATION_SECONDS": 60,
+            "TIME_WINDOW_MINUTES": 15
+        },
+        "tags": [
+            "fraud",
+            "spam",
+            "voice-attack"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS CALL_COUNT FROM cdr WHERE CALLDURATION <= $MAX_CALL_DURATION_SECONDS AND TRANSACTIONSTARTTIME >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING CALL_COUNT > $CALL_THRESHOLD"
+    },
+    {
+        "rule_id": "R048",
+        "name": "Multiple Failed Payment Attempts",
+        "description": "Detects repeated failed payment attempts in a short time window.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "PaymentLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "PAYMENT_STATUS",
+            "PAYMENTTIME"
+        ],
+        "default_params": {
+            "FAIL_THRESHOLD": 3,
+            "TIME_WINDOW_MINUTES": 30
+        },
+        "tags": [
+            "billing",
+            "fraud",
+            "payment-failure"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, COUNT(*) AS FAIL_COUNT FROM paymentlogs WHERE PAYMENT_STATUS = 'FAILED' AND PAYMENTTIME >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING FAIL_COUNT > $FAIL_THRESHOLD"
+    },
+    {
+        "rule_id": "R049",
+        "name": "Frequent Location Jumps",
+        "description": "Identifies devices appearing in distant cell locations within an impossibly short travel time.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "LocationLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "CELL_ID",
+            "LOCATION_TIMESTAMP"
+        ],
+        "default_params": {
+            "DISTANCE_THRESHOLD_KM": 500,
+            "TIME_WINDOW_MINUTES": 30
+        },
+        "tags": [
+            "location",
+            "fraud",
+            "impossible-travel"
+        ],
+        "sql_template": "SELECT MOBILENUMBER FROM locationlogs WHERE LOCATION_TIMESTAMP >= DATEADD(MINUTE, -$TIME_WINDOW_MINUTES, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING MAX(DISTANCE_BETWEEN_POINTS) > $DISTANCE_THRESHOLD_KM"
+    },
+    {
+        "rule_id": "R050",
+        "name": "VoIP Overuse Detection",
+        "description": "Flags subscribers using unusually high amounts of VoIP traffic compared to historical usage.",
+        "created_at": "2025-08-16T00:00:00Z",
+        "modified_at": "2025-08-16T00:00:00Z",
+        "version": "1.0",
+        "rule_type": "Rule",
+        "data_source": "DataUsageLogs",
+        "required_fields": [
+            "MOBILENUMBER",
+            "APPLICATION_TYPE",
+            "DATAUSAGE",
+            "USAGETIME"
+        ],
+        "default_params": {
+            "VOIP_THRESHOLD_MB": 2000,
+            "TIME_WINDOW_DAYS": 7
+        },
+        "tags": [
+            "data",
+            "voip",
+            "anomaly"
+        ],
+        "sql_template": "SELECT MOBILENUMBER, SUM(DATAUSAGE) AS VOIP_DATA FROM datausagelogs WHERE APPLICATION_TYPE = 'VOIP' AND USAGETIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER HAVING VOIP_DATA > $VOIP_THRESHOLD_MB"
+    }
+]

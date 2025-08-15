@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Rules & Targets Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Add this in your HTML head or before your script -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- add css file -->
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 40vh;
+            width: 80vw;
+            max-width: 500px;
+        }
+    </style>
+</head>
+
+<body class="antialiased text-gray-200 bg-gray-900 dark:bg-gray-900 dark:text-gray-200">
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <div class="flex justify-between items-center">
+                <h1 class="text-4xl font-bold text-slate-200">Security Rules & Targets Dashboard</h1>
+                <!-- Dark Mode Toggle -->
+                <button id="theme-toggle"
+                    class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-600 transition">
+                    🌙 Dark Mode
+                </button>
+            </div>
+            <p class="text-slate-400 mt-2">An interactive overview of the security rules and targets.</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="flex justify-center mb-8 bg-slate-800 p-2 rounded-lg shadow-md">
+            <button id="nav-dashboard"
+                class="px-4 py-2 text-slate-100 font-semibold border-b-2 border-slate-400">Dashboard</button>
+            <button id="nav-rules" class="px-4 py-2 text-slate-300 font-semibold hover:text-white">Rules</button>
+            <button id="nav-targets" class="px-4 py-2 text-slate-300 font-semibold hover:text-white">Targets</button>
+        </nav>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard-section">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-xl font-semibold text-slate-300">Total Rules</h3>
+                    <p id="total-rules" class="text-4xl font-bold text-slate-100 mt-2"></p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-xl font-semibold text-slate-300">Total Targets</h3>
+                    <p id="total-targets" class="text-4xl font-bold text-slate-100 mt-2"></p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-xl font-semibold text-slate-300">CDR Rules</h3>
+                    <p id="cdr-rules" class="text-4xl font-bold text-slate-100 mt-2"></p>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md text-center">
+                    <h3 class="text-xl font-semibold text-slate-300">IPDR Rules</h3>
+                    <p id="ipdr-rules" class="text-4xl font-bold text-slate-100 mt-2"></p>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-slate-300 mb-4 text-center">Rules by Data Source</h3>
+                    <div class="chart-container mx-auto">
+                        <canvas id="rules-by-source-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-slate-300 mb-4 text-center">Rules by Type</h3>
+                    <div class="chart-container mx-auto">
+                        <canvas id="rules-by-type-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Rules Section -->
+        <section id="rules-section" class="hidden">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-md">
+                <input type="text" id="rules-search" placeholder="Search rules..."
+                    class="w-full p-2 border border-slate-600 rounded-md mb-4 bg-slate-900 text-gray-200 placeholder-gray-500">
+                <div id="rules-list" class="overflow-x-auto"></div>
+            </div>
+        </section>
+
+        <!-- Targets Section -->
+        <section id="targets-section" class="hidden">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-md">
+                <input type="text" id="targets-search" placeholder="Search targets..."
+                    class="w-full p-2 border border-slate-600 rounded-md mb-4 bg-slate-900 text-gray-200 placeholder-gray-500">
+                <div id="targets-list" class="overflow-x-auto"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal for LLM Responses -->
+    <div id="llm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center p-4">
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full text-gray-200">
+            <div class="flex justify-between items-center mb-4">
+                <h4 id="llm-title" class="text-2xl font-bold text-slate-100"></h4>
+                <button id="close-modal" class="text-gray-400 hover:text-gray-200 text-3xl">&times;</button>
+            </div>
+            <div id="llm-content" class="text-gray-300 overflow-y-auto max-h-96"></div>
+        </div>
+    </div>
+
+
+
+    <script>
+        /* ---------- Data ---------- */
+        const targets = [
+            { "target_id": "TGT001", "target_type": "MOBILE_NUMBER", "identifier": "9876543210", "associated_imsi": "405874321012345", "associated_imei": "359123450123456", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS001", "description": "Suspect mobile number under surveillance" },
+            { "target_id": "TGT002", "target_type": "IMEI", "identifier": "359123450123457", "associated_imsi": "405874321012346", "associated_imei": "359123450123457", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS002", "description": "IMEI linked to multiple SIMs" },
+            { "target_id": "TGT003", "target_type": "IP_ADDRESS", "identifier": "192.168.1.101", "associated_imsi": null, "associated_imei": null, "created_at": "2025-08-09T00:00:00Z", "status": "inactive", "associated_bts": null, "description": "Suspect public IP from proxy logs" },
+            { "target_id": "TGT004", "target_type": "IMEI", "identifier": "359123450123458", "associated_imsi": "405874321012347", "associated_imei": "359123450123458", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS003", "description": "IMEI suspected in device spoofing" },
+            { "target_id": "TGT005", "target_type": "MOBILE_NUMBER", "identifier": "8765432109", "associated_imsi": "405874321012348", "associated_imei": "359123450123459", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS004", "description": "Known associate of suspect" },
+            { "target_id": "TGT006", "target_type": "IP_ADDRESS", "identifier": "10.0.0.54", "associated_imsi": null, "associated_imei": null, "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": null, "description": "Internal IP triggering unusual activity" },
+            { "target_id": "TGT007", "target_type": "IMEI", "identifier": "359123450123460", "associated_imsi": "405874321012349", "associated_imei": "359123450123460", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS005", "description": "Potential stolen device" },
+            { "target_id": "TGT008", "target_type": "MOBILE_NUMBER", "identifier": "9988776655", "associated_imsi": "405874321012350", "associated_imei": "359123450123461", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS006", "description": "Burner phone activity" },
+            { "target_id": "TGT009", "target_type": "MOBILE_NUMBER", "identifier": "9090909090", "associated_imsi": "405874321012351", "associated_imei": "359123450123462", "created_at": "2025-08-09T00:00:00Z", "status": "active", "associated_bts": "BTS007", "description": "SIM linked to VOIP calls" },
+            { "target_id": "TGT010", "target_type": "IP_ADDRESS", "identifier": "172.16.24.89", "associated_imsi": null, "associated_imei": null, "created_at": "2025-08-09T00:00:00Z", "status": "inactive", "associated_bts": null, "description": "Outbound suspicious traffic" }
+        ];
+
+        const rules = [
+            { "rule_id": "R001", "name": "High-Frequency Communication Between Two Parties", "description": "Detects unusually frequent calls or messages between two numbers within a short time window.", "created_at": "2025-08-09T00:00:00Z", "modified_at": "2025-08-09T00:00:00Z", "version": "1.0", "rule_type": "Rule", "data_source": "CDR", "required_fields": ["MOBILENUMBER", "B_MOBILENUMBER", "TRANSACTIONSTARTTIME"], "default_params": { "FREQUENCY_THRESHOLD": 50, "TIME_WINDOW_HOURS": 24 }, "tags": ["communication-pattern", "coordination"], "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS TOTAL_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING TOTAL_CALLS > $FREQUENCY_THRESHOLD" },
+            { "rule_id": "R002", "name": "Unusual Call Duration", "description": "Detects abnormally long or short calls.", "created_at": "2025-08-09T00:00:00Z", "modified_at": "2025-08-09T00:00:00Z", "version": "1.0", "rule_type": "Rule", "data_source": "CDR", "required_fields": ["MOBILENUMBER", "B_MOBILENUMBER", "DURATION"], "default_params": { "MIN_DURATION_SEC": 3, "MAX_DURATION_SEC": 1200 }, "tags": ["anomaly-duration", "covert-communication"], "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, DURATION FROM cdr WHERE DURATION < $MIN_DURATION_SEC OR DURATION > $MAX_DURATION_SEC" },
+        ];
+
+        /* ---------- Navigation ---------- */
+        const sections = {
+            dashboard: document.getElementById('dashboard-section'),
+            rules: document.getElementById('rules-section'),
+            targets: document.getElementById('targets-section')
+        };
+        const navButtons = {
+            dashboard: document.getElementById('nav-dashboard'),
+            rules: document.getElementById('nav-rules'),
+            targets: document.getElementById('nav-targets')
+        };
+        const navigate = (section) => {
+            Object.values(sections).forEach(s => s.classList.add('hidden'));
+            Object.values(navButtons).forEach(b => b.classList.remove('border-b-2', 'border-slate-500', 'text-slate-600'));
+            sections[section].classList.remove('hidden');
+            navButtons[section].classList.add('border-b-2', 'border-slate-500', 'text-slate-600');
+        };
+        navButtons.dashboard.addEventListener('click', () => navigate('dashboard'));
+        navButtons.rules.addEventListener('click', () => navigate('rules'));
+        navButtons.targets.addEventListener('click', () => navigate('targets'));
+
+        /* ---------- Modal + Marked ---------- */
+        const llmModal = document.getElementById('llm-modal');
+        const llmTitle = document.getElementById('llm-title');
+        const llmContent = document.getElementById('llm-content');
+        const closeModalButton = document.getElementById('close-modal');
+
+        closeModalButton.addEventListener('click', () => llmModal.classList.add('hidden'));
+
+        const showModal = (title, markdownContent) => {
+            llmTitle.textContent = title;
+            const htmlContent = marked.parse(markdownContent || '');
+            llmContent.innerHTML = htmlContent;
+            llmModal.classList.remove('hidden');
+        };
+
+        /* ---------- LLM actions (Ollama) ---------- */
+        const explainRule = async (rule) => {
+            const btn = document.getElementById(`explain-rule-${rule.rule_id}`);
+            const original = btn ? btn.textContent : null;
+            if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
+
+            const prompt = `Explain the purpose of this security rule in simple, non-technical terms.
+The rule's name is "${rule.name}" and its description is "${rule.description}".
+It uses the following SQL template: "${rule.sql_template}".
+Focus on what the rule is designed to detect and why it's important.`;
+
+            try {
+                const payload = { model: "gemma3:1b", prompt, stream: false };
+                const res = await fetch("http://localhost:11434/api/generate", {
+                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error(`Ollama request failed (${res.status})`);
+                const data = await res.json();
+                showModal(`Explanation for ${rule.rule_id}`, (data && data.response) ? data.response.trim() : 'No response.');
+            } catch (e) {
+                console.error(e);
+                showModal('Error', 'Could not generate explanation. Ensure Ollama is running on localhost:11434 and the model is available.');
+            } finally {
+                if (btn) { btn.textContent = original; btn.disabled = false; }
+            }
+        };
+
+        const analyzeTarget = async (target) => {
+            const btn = document.getElementById(`analyze-target-${target.target_id}`);
+            const original = btn ? btn.textContent : null;
+            if (btn) { btn.textContent = 'Analyzing...'; btn.disabled = true; }
+
+            const prompt = `Perform a basic risk analysis for this security target.
+Target ID: "${target.target_id}", Type: "${target.target_type}".
+Description: "${target.description}".
+Briefly summarize potential risks, telltale patterns, and simple next steps.`;
+
+            try {
+                const payload = { model: "gemma3:1b", prompt, stream: false };
+                const res = await fetch("http://localhost:11434/api/generate", {
+                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error(`Ollama request failed (${res.status})`);
+                const data = await res.json();
+                showModal(`Analysis for ${target.target_id}`, (data && data.response) ? data.response.trim() : 'No response.');
+            } catch (e) {
+                console.error(e);
+                showModal('Error', 'Could not perform analysis. Ensure Ollama is running on localhost:11434 and the model is available.');
+            } finally {
+                if (btn) { btn.textContent = original; btn.disabled = false; }
+            }
+        };
+
+        /* ---------- Rendering ---------- */
+        function bindRuleButtons(list) {
+            list.forEach(rule => {
+                const el = document.getElementById(`explain-rule-${rule.rule_id}`);
+                if (el) el.addEventListener('click', () => explainRule(rule));
+            });
+        }
+
+        function bindTargetButtons(list) {
+            list.forEach(target => {
+                const el = document.getElementById(`analyze-target-${target.target_id}`);
+                if (el) el.addEventListener('click', () => analyzeTarget(target));
+            });
+        }
+
+        function renderRules(filteredRules) {
+            const rulesList = document.getElementById('rules-list');
+
+            let html = `
+    <table class="min-w-full bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
+      <thead>
+        <tr class="w-full bg-slate-100 dark:bg-slate-700 text-left text-slate-600 dark:text-slate-300 uppercase text-sm leading-normal">
+          <th class="py-3 px-6">ID</th>
+          <th class="py-3 px-6">Name</th>
+          <th class="py-3 px-6">Data Source</th>
+          <th class="py-3 px-6">Type</th>
+          <th class="py-3 px-6">Tags</th>
+          <th class="py-3 px-6 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-600 dark:text-gray-300 text-sm font-light">
+  `;
+
+            filteredRules.forEach(rule => {
+                html += `
+      <tr class="border-b border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+        <td class="py-3 px-6">${rule.rule_id}</td>
+        <td class="py-3 px-6">${rule.name}</td>
+        <td class="py-3 px-6">${rule.data_source}</td>
+        <td class="py-3 px-6">${rule.rule_type}</td>
+        <td class="py-3 px-6">${(rule.tags || []).join(', ')}</td>
+        <td class="py-3 px-6 text-center">
+          <button id="explain-rule-${rule.rule_id}" 
+            class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-3 rounded-lg transition duration-300">
+            Explain Rule ✨
+          </button>
+        </td>
+      </tr>
+    `;
+            });
+
+            html += `</tbody></table>`;
+            rulesList.innerHTML = html;
+
+            bindRuleButtons(filteredRules);
+        }
+
+
+        function renderTargets(filteredTargets) {
+            const targetsList = document.getElementById('targets-list');
+
+            let html = `
+    <table class="min-w-full bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
+      <thead>
+        <tr class="w-full bg-slate-100 dark:bg-slate-700 text-left text-slate-600 dark:text-slate-300 uppercase text-sm leading-normal">
+          <th class="py-3 px-6">ID</th>
+          <th class="py-3 px-6">Type</th>
+          <th class="py-3 px-6">Identifier</th>
+          <th class="py-3 px-6">Status</th>
+          <th class="py-3 px-6">Description</th>
+          <th class="py-3 px-6 text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-600 dark:text-gray-300 text-sm font-light">
+  `;
+
+            filteredTargets.forEach(target => {
+                html += `
+      <tr class="border-b border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+        <td class="py-3 px-6">${target.target_id}</td>
+        <td class="py-3 px-6">${target.target_type}</td>
+        <td class="py-3 px-6">${target.identifier}</td>
+        <td class="py-3 px-6">${target.status}</td>
+        <td class="py-3 px-6">${target.description}</td>
+        <td class="py-3 px-6 text-center">
+          <button id="analyze-target-${target.target_id}" 
+            class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-3 rounded-lg transition duration-300">
+            Analyze Target ✨
+          </button>
+        </td>
+      </tr>
+    `;
+            });
+
+            html += `</tbody></table>`;
+            targetsList.innerHTML = html;
+
+            bindTargetButtons(filteredTargets);
+        }
+
+
+        function renderCharts() {
+            const cdrRules = rules.filter(r => r.data_source === 'CDR').length;
+            const ipdrRules = rules.filter(r => r.data_source === 'IPDR').length;
+
+            new Chart(document.getElementById('rules-by-source-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['CDR', 'IPDR'],
+                    datasets: [{ data: [cdrRules, ipdrRules], backgroundColor: ['#64748b', '#94a3b8'] }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+
+            const ruleTypes = rules.reduce((acc, rule) => {
+                acc[rule.rule_type] = (acc[rule.rule_type] || 0) + 1;
+                return acc;
+            }, {});
+
+            new Chart(document.getElementById('rules-by-type-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(ruleTypes),
+                    datasets: [{ data: Object.values(ruleTypes), backgroundColor: ['#64748b', '#94a3b8'] }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        function updateCounters() {
+            document.getElementById('total-rules').textContent = rules.length;
+            document.getElementById('total-targets').textContent = targets.length;
+            document.getElementById('cdr-rules').textContent = rules.filter(r => r.data_source === 'CDR').length;
+            document.getElementById('ipdr-rules').textContent = rules.filter(r => r.data_source === 'IPDR').length;
+        }
+
+        /* ---------- Init (wait for rules.json) ---------- */
+        async function initializeDashboard() {
+            try {
+                const response = await fetch('rules.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    rules.push(...data);
+                    console.log("Loaded rules:", rules.length, "rules found.");
+                } else {
+                    console.warn("Failed to load rules.json, using defaults only.");
+                }
+            } catch (err) {
+                console.error("Error loading rules.json:", err);
+            }
+
+            // Counters + charts + tables AFTER data is final
+            updateCounters();
+            renderCharts();
+            renderRules(rules);
+            renderTargets(targets);
+
+            // Search handlers (re-render -> re-bind happens inside render*)
+            document.getElementById('rules-search').addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const filtered = rules.filter(rule =>
+                    rule.name.toLowerCase().includes(term) ||
+                    rule.rule_type.toLowerCase().includes(term) ||
+                    rule.rule_id.toLowerCase().includes(term) ||
+                    rule.description.toLowerCase().includes(term) ||
+                    (rule.tags || []).some(tag => tag.toLowerCase().includes(term)) ||
+                    rule.data_source.toLowerCase().includes(term)
+                );
+                renderRules(filtered);
+            });
+
+            document.getElementById('targets-search').addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const filtered = targets.filter(t =>
+                    (t.identifier || '').toLowerCase().includes(term) ||
+                    (t.description || '').toLowerCase().includes(term)
+                );
+                renderTargets(filtered);
+            });
+        }
+
+
+        // ---------------- Robust theme toggle (drop-in replacement) ----------------
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggle = document.getElementById('theme-toggle');
+            if (!themeToggle) {
+                console.warn('Theme toggle button (#theme-toggle) not found.');
+                return;
+            }
+
+            const THEME_KEY = 'theme';
+            const root = document.documentElement; // <html>
+
+            function applyTheme(isDark) {
+                // toggle class Tailwind's dark: utilities look for
+                root.classList.toggle('dark', !!isDark);
+
+                // optional body style helpers (keeps visuals consistent)
+                document.body.classList.toggle('bg-gray-900', !!isDark);
+                document.body.classList.toggle('text-gray-200', !!isDark);
+
+                // update button label
+                themeToggle.textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+
+                // update charts theme if function exists (safe call)
+                if (typeof updateChartTheme === 'function') {
+                    try { updateChartTheme(!!isDark); } catch (e) { console.warn(e); }
+                }
+            }
+
+            // initialize from saved value (default -> dark)
+            const saved = localStorage.getItem(THEME_KEY);
+            const startDark = saved ? saved === 'dark' : true;
+            applyTheme(startDark);
+
+            // click handler
+            themeToggle.addEventListener('click', () => {
+                const nowDark = root.classList.contains('dark');
+                const nextDark = !nowDark;
+                localStorage.setItem(THEME_KEY, nextDark ? 'dark' : 'light');
+                applyTheme(nextDark);
+            });
+        });
+
+
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
+    </script>
+
+</body>
+
+</html>
