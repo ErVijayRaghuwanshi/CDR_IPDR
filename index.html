@@ -33,10 +33,10 @@
             <div class="flex justify-between items-center">
                 <h1 class="text-4xl font-bold text-slate-200">Security Rules & Targets Dashboard</h1>
                 <!-- Dark Mode Toggle -->
-                <button id="theme-toggle"
+                <!-- <button id="theme-toggle"
                     class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-600 transition">
                     🌙 Dark Mode
-                </button>
+                </button> -->
             </div>
             <p class="text-slate-400 mt-2">An interactive overview of the security rules and targets.</p>
         </header>
@@ -108,7 +108,7 @@
 
     <!-- Modal for LLM Responses -->
     <div id="llm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center p-4">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full text-gray-200">
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-3xl w-full text-gray-200">
             <div class="flex justify-between items-center mb-4">
                 <h4 id="llm-title" class="text-2xl font-bold text-slate-100"></h4>
                 <button id="close-modal" class="text-gray-400 hover:text-gray-200 text-3xl">&times;</button>
@@ -174,27 +174,67 @@
             llmContent.innerHTML = htmlContent;
             llmModal.classList.remove('hidden');
         };
+        // Utility: stream Ollama response into modal
+        async function streamOllamaResponse(title, payload) {
+            const res = await fetch("http://localhost:11434/api/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...payload, stream: true })
+            });
+
+            if (!res.ok) throw new Error(`Ollama request failed (${res.status})`);
+
+            // Show modal immediately with empty placeholder
+            showModal(title, '');
+            llmContent.textContent = '';
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedText = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+
+                for (const line of chunk.split('\n')) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.response) {
+                            accumulatedText += data.response;
+                            llmContent.innerHTML = marked.parse(accumulatedText);
+                        }
+                    } catch (err) {
+                        console.error('Failed to parse stream chunk', err, line);
+                    }
+                }
+            }
+        }
 
         /* ---------- LLM actions (Ollama) ---------- */
+        // model = "gemma3:1b";
+        model = "llama3.2:latest";
+
         const explainRule = async (rule) => {
             const btn = document.getElementById(`explain-rule-${rule.rule_id}`);
             const original = btn ? btn.textContent : null;
             if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
+                const system = `You are an advanced security intelligence analysis system, working to assist 
+    national security and specialized law enforcement agencies such as the National Investigation Agency (NIA),
+    Anti-Terrorism Squad (ATS), Technical Analysis Special Knowledge (TASK), and the Research & Analysis Wing (RAW).
+    Your purpose is to help investigators, analysts, and law enforcement officers understand security rules, 
+    identify threats, and support lawful counterterrorism and cybercrime operations. Provide responses that 
+    are clear, actionable, and focused on national security priorities.`;
 
-            const prompt = `Explain the purpose of this security rule in simple, non-technical terms.
+    const prompt = `Explain the purpose of this security rule in simple, non-technical terms.
 The rule's name is "${rule.name}" and its description is "${rule.description}".
 It uses the following SQL template: "${rule.sql_template}".
 Focus on what the rule is designed to detect and why it's important.`;
 
             try {
-                const payload = { model: "gemma3:1b", prompt, stream: false };
-                const res = await fetch("http://localhost:11434/api/generate", {
-                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-                });
-
-                if (!res.ok) throw new Error(`Ollama request failed (${res.status})`);
-                const data = await res.json();
-                showModal(`Explanation for ${rule.rule_id}`, (data && data.response) ? data.response.trim() : 'No response.');
+                await streamOllamaResponse(`Explanation for ${rule.rule_id} (${rule.name})`, { model: model, prompt, system });
             } catch (e) {
                 console.error(e);
                 showModal('Error', 'Could not generate explanation. Ensure Ollama is running on localhost:11434 and the model is available.');
@@ -208,20 +248,20 @@ Focus on what the rule is designed to detect and why it's important.`;
             const original = btn ? btn.textContent : null;
             if (btn) { btn.textContent = 'Analyzing...'; btn.disabled = true; }
 
+                const system = `You are an advanced security intelligence analysis system assisting 
+    national security and specialized law enforcement agencies such as the National Investigation Agency (NIA),
+    Anti-Terrorism Squad (ATS), Technical Analysis Special Knowledge (TASK), and the Research & Analysis Wing (RAW).
+    Your role is to help investigators, analysts, and law enforcement officers assess potential threats, 
+    evaluate targets, and provide actionable intelligence for lawful counterterrorism, anti-organized crime, 
+    and cybercrime operations. Be precise, professional, and security-focused.`;
+
             const prompt = `Perform a basic risk analysis for this security target.
 Target ID: "${target.target_id}", Type: "${target.target_type}".
 Description: "${target.description}".
 Briefly summarize potential risks, telltale patterns, and simple next steps.`;
 
             try {
-                const payload = { model: "gemma3:1b", prompt, stream: false };
-                const res = await fetch("http://localhost:11434/api/generate", {
-                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-                });
-
-                if (!res.ok) throw new Error(`Ollama request failed (${res.status})`);
-                const data = await res.json();
-                showModal(`Analysis for ${target.target_id}`, (data && data.response) ? data.response.trim() : 'No response.');
+                await streamOllamaResponse(`Analysis for ${target.target_id}`, { model: model, prompt, system });
             } catch (e) {
                 console.error(e);
                 showModal('Error', 'Could not perform analysis. Ensure Ollama is running on localhost:11434 and the model is available.');
@@ -230,20 +270,42 @@ Briefly summarize potential risks, telltale patterns, and simple next steps.`;
             }
         };
 
+
         /* ---------- Rendering ---------- */
+        // function bindRuleButtons(list) {
+        //     list.forEach(rule => {
+        //         const el = document.getElementById(`explain-rule-${rule.rule_id}`);
+        //         if (el) el.addEventListener('click', () => explainRule(rule));
+        //     });
+        // }
+
+        // function bindTargetButtons(list) {
+        //     list.forEach(target => {
+        //         const el = document.getElementById(`analyze-target-${target.target_id}`);
+        //         if (el) el.addEventListener('click', () => analyzeTarget(target));
+        //     });
+        // }
+
+
         function bindRuleButtons(list) {
             list.forEach(rule => {
                 const el = document.getElementById(`explain-rule-${rule.rule_id}`);
-                if (el) el.addEventListener('click', () => explainRule(rule));
+                if (el) {
+                    el.onclick = () => explainRule(rule); // replaces old listener
+                }
             });
         }
 
         function bindTargetButtons(list) {
             list.forEach(target => {
                 const el = document.getElementById(`analyze-target-${target.target_id}`);
-                if (el) el.addEventListener('click', () => analyzeTarget(target));
+                if (el) {
+                    el.onclick = () => analyzeTarget(target); // replaces old listener
+                }
             });
         }
+
+
 
         function renderRules(filteredRules) {
             const rulesList = document.getElementById('rules-list');
