@@ -1,0 +1,315 @@
+[
+    {
+        "groups_by_id": {
+            "GRP001": {
+                "rules": [
+                    {
+                        "name": "High-Frequency Communication Between Two Parties",
+                        "rule_id": "R001",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects unusually frequent calls or messages between two numbers within a short time window.",
+                        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS TOTAL_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING TOTAL_CALLS > $FREQUENCY_THRESHOLD",
+                        "custom_params": {
+                            "FREQUENCY_THRESHOLD": 40
+                        },
+                        "group_rule_id": 1,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "B_MOBILENUMBER",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Unusual Call Duration",
+                        "rule_id": "R002",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects abnormally long or short calls.",
+                        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, DURATION FROM cdr WHERE DURATION < $MIN_DURATION_SEC OR DURATION > $MAX_DURATION_SEC",
+                        "custom_params": {
+                            "MAX_DURATION_SEC": 1500
+                        },
+                        "group_rule_id": 2,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "B_MOBILENUMBER",
+                            "DURATION"
+                        ]
+                    },
+                    {
+                        "name": "Communication With Known Blacklisted Numbers",
+                        "rule_id": "R003",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Flags calls or messages to/from numbers on a watchlist.",
+                        "sql_template": "SELECT c.MOBILENUMBER, c.B_MOBILENUMBER, w.WATCHLIST_ID AS MATCHED_WATCHLIST_ID FROM cdr c JOIN $WATCHLIST_TABLE w ON c.MOBILENUMBER = w.NUMBER OR c.B_MOBILENUMBER = w.NUMBER",
+                        "custom_params": {},
+                        "group_rule_id": 3,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "B_MOBILENUMBER"
+                        ]
+                    },
+                    {
+                        "name": "Frequent Cell Tower Location Changes",
+                        "rule_id": "R004",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects rapid movement across large distances.",
+                        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT BTS) AS TOTAL_BTS_CHANGES FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING TOTAL_BTS_CHANGES > $LOCATION_CHANGE_THRESHOLD",
+                        "custom_params": {
+                            "LOCATION_CHANGE_THRESHOLD": 4
+                        },
+                        "group_rule_id": 4,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "BTS",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "SIM Swap Detection",
+                        "rule_id": "R005",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects multiple IMEIs for same mobile number in a short time window, indicating a potential SIM swap.",
+                        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT IMEI) AS CHANGE_COUNT FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING CHANGE_COUNT > $IMEI_CHANGE_THRESHOLD",
+                        "custom_params": {},
+                        "group_rule_id": 5,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "IMEI",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "High Volume of International Calls",
+                        "rule_id": "R006",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Flags unusual spikes in calls to foreign destinations, often used for organized crime.",
+                        "sql_template": "SELECT MOBILENUMBER, DSTCOUNTRY, COUNT(*) AS TOTAL_FOREIGN_CALLS FROM cdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, DSTCOUNTRY HAVING TOTAL_FOREIGN_CALLS > $FOREIGN_CALL_THRESHOLD",
+                        "custom_params": {
+                            "FOREIGN_CALL_THRESHOLD": 8
+                        },
+                        "group_rule_id": 6,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "DSTCOUNTRY",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Suspicious VoIP Traffic",
+                        "rule_id": "R009",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Detects encrypted or obfuscated VoIP calls outside of normal business hours, which may indicate covert communication.",
+                        "sql_template": "SELECT MOBILENUMBER, APPLICATION FROM ipdr WHERE APPLICATION = 'VoIP' AND (HOUR(TRANSACTIONSTARTTIME) < $ALLOWED_HOURS_START OR HOUR(TRANSACTIONSTARTTIME) > $ALLOWED_HOURS_END)",
+                        "custom_params": {
+                            "ALLOWED_HOURS_END": 20,
+                            "ALLOWED_HOURS_START": 6
+                        },
+                        "group_rule_id": 7,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "APPLICATION",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Repeated Contact With Foreign IP Addresses",
+                        "rule_id": "R010",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Flags repeated communications with the same foreign server IP, which could signal a command-and-control connection.",
+                        "sql_template": "SELECT MOBILENUMBER, SERVERIP, DSTCOUNTRY FROM ipdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER, SERVERIP, DSTCOUNTRY HAVING COUNT(*) > $REPEAT_CONTACT_THRESHOLD",
+                        "custom_params": {},
+                        "group_rule_id": 8,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "SERVERIP",
+                            "DSTCOUNTRY"
+                        ]
+                    }
+                ],
+                "status": "active",
+                "targets": [
+                    {
+                        "target_id": "TGT001",
+                        "identifier": "9876543210",
+                        "target_type": "MOBILE_NUMBER"
+                    },
+                    {
+                        "target_id": "TGT002",
+                        "identifier": "359123450123457",
+                        "target_type": "IMEI"
+                    },
+                    {
+                        "target_id": "TGT005",
+                        "identifier": "8765432109",
+                        "target_type": "MOBILE_NUMBER"
+                    },
+                    {
+                        "target_id": "TGT009",
+                        "identifier": "9090909090",
+                        "target_type": "MOBILE_NUMBER"
+                    }
+                ],
+                "group_name": "Urban Surveillance Group"
+            },
+            "GRP002": {
+                "rules": [
+                    {
+                        "name": "High-Frequency Communication Between Two Parties",
+                        "rule_id": "R001",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects unusually frequent calls or messages between two numbers within a short time window.",
+                        "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS TOTAL_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING TOTAL_CALLS > $FREQUENCY_THRESHOLD",
+                        "custom_params": {},
+                        "group_rule_id": 16,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "B_MOBILENUMBER",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Communication With Known Blacklisted Numbers",
+                        "rule_id": "R003",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Flags calls or messages to/from numbers on a watchlist.",
+                        "sql_template": "SELECT c.MOBILENUMBER, c.B_MOBILENUMBER, w.WATCHLIST_ID AS MATCHED_WATCHLIST_ID FROM cdr c JOIN $WATCHLIST_TABLE w ON c.MOBILENUMBER = w.NUMBER OR c.B_MOBILENUMBER = w.NUMBER",
+                        "custom_params": {},
+                        "group_rule_id": 9,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "B_MOBILENUMBER"
+                        ]
+                    },
+                    {
+                        "name": "Frequent Cell Tower Location Changes",
+                        "rule_id": "R004",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Detects rapid movement across large distances.",
+                        "sql_template": "SELECT MOBILENUMBER, COUNT(DISTINCT BTS) AS TOTAL_BTS_CHANGES FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER HAVING TOTAL_BTS_CHANGES > $LOCATION_CHANGE_THRESHOLD",
+                        "custom_params": {},
+                        "group_rule_id": 10,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "BTS",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "High Volume of International Calls",
+                        "rule_id": "R006",
+                        "rule_type": "Rule",
+                        "data_source": "CDR",
+                        "description": "Flags unusual spikes in calls to foreign destinations, often used for organized crime.",
+                        "sql_template": "SELECT MOBILENUMBER, DSTCOUNTRY, COUNT(*) AS TOTAL_FOREIGN_CALLS FROM cdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, DSTCOUNTRY HAVING TOTAL_FOREIGN_CALLS > $FOREIGN_CALL_THRESHOLD",
+                        "custom_params": {},
+                        "group_rule_id": 11,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "DSTCOUNTRY",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Access to Restricted Online Services",
+                        "rule_id": "R007",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Detects access to restricted or illegal domains/apps from the IPDR data.",
+                        "sql_template": "SELECT i.MOBILENUMBER, i.DOMAIN, i.APPCATEGORY FROM ipdr i JOIN $RESTRICTED_TABLE r ON i.DOMAIN = r.DOMAIN OR i.APPCATEGORY = r.APPCATEGORY",
+                        "custom_params": {},
+                        "group_rule_id": 12,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "DOMAIN",
+                            "APPCATEGORY"
+                        ]
+                    },
+                    {
+                        "name": "Multiple Devices Using Same IP",
+                        "rule_id": "R008",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Detects when multiple unique IMEIs use the same IP address in a short time, indicating a potential hotspot or shared connection for coordinated activity.",
+                        "sql_template": "SELECT SERVERIP, COUNT(DISTINCT IMEI) AS DEVICE_COUNT FROM ipdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY SERVERIP HAVING DEVICE_COUNT > $DEVICE_COUNT_THRESHOLD",
+                        "custom_params": {
+                            "DEVICE_COUNT_THRESHOLD": 4
+                        },
+                        "group_rule_id": 13,
+                        "required_fields": [
+                            "SERVERIP",
+                            "IMEI",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Suspicious VoIP Traffic",
+                        "rule_id": "R009",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Detects encrypted or obfuscated VoIP calls outside of normal business hours, which may indicate covert communication.",
+                        "sql_template": "SELECT MOBILENUMBER, APPLICATION FROM ipdr WHERE APPLICATION = 'VoIP' AND (HOUR(TRANSACTIONSTARTTIME) < $ALLOWED_HOURS_START OR HOUR(TRANSACTIONSTARTTIME) > $ALLOWED_HOURS_END)",
+                        "custom_params": {},
+                        "group_rule_id": 14,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "APPLICATION",
+                            "TRANSACTIONSTARTTIME"
+                        ]
+                    },
+                    {
+                        "name": "Repeated Contact With Foreign IP Addresses",
+                        "rule_id": "R010",
+                        "rule_type": "Rule",
+                        "data_source": "IPDR",
+                        "description": "Flags repeated communications with the same foreign server IP, which could signal a command-and-control connection.",
+                        "sql_template": "SELECT MOBILENUMBER, SERVERIP, DSTCOUNTRY FROM ipdr WHERE DSTCOUNTRY <> 'LOCAL' AND TRANSACTIONSTARTTIME >= DATEADD(DAY, -$TIME_WINDOW_DAYS, CURRENT_DATE) GROUP BY MOBILENUMBER, SERVERIP, DSTCOUNTRY HAVING COUNT(*) > $REPEAT_CONTACT_THRESHOLD",
+                        "custom_params": {
+                            "REPEAT_CONTACT_THRESHOLD": 15
+                        },
+                        "group_rule_id": 15,
+                        "required_fields": [
+                            "MOBILENUMBER",
+                            "SERVERIP",
+                            "DSTCOUNTRY"
+                        ]
+                    }
+                ],
+                "status": "active",
+                "targets": [
+                    {
+                        "target_id": "TGT003",
+                        "identifier": "192.168.1.101",
+                        "target_type": "IP_ADDRESS"
+                    },
+                    {
+                        "target_id": "TGT006",
+                        "identifier": "10.0.0.54",
+                        "target_type": "IP_ADDRESS"
+                    },
+                    {
+                        "target_id": "TGT008",
+                        "identifier": "9988776655",
+                        "target_type": "MOBILE_NUMBER"
+                    },
+                    {
+                        "target_id": "TGT010",
+                        "identifier": "172.16.24.89",
+                        "target_type": "IP_ADDRESS"
+                    }
+                ],
+                "group_name": "Cyber Activity Watch"
+            }
+        }
+    }
+]
