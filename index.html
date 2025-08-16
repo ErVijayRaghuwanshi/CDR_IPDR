@@ -125,11 +125,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <h5 class="font-semibold text-slate-300"></h5>
+                    <!-- add auto scroll -->
                     <div id="llm-content" class="text-gray-300 overflow-y-auto max-h-96"></div>
                 </div>
                 <div>
                     <h5 class="font-semibold text-slate-300">SQL Query</h5>
-                    <pre class="line-numbers"><code id="sqlBox" class="language-sql"></code></pre>
+                    <pre class="line-numbers"><code id="sqlBox" class="language-sql ext-gray-300 overflow-y-auto max-h-96"></code></pre>
                 </div>
             </div>
 
@@ -153,9 +154,7 @@
         ];
 
         const rules = [
-            { "rule_id": "R001", "name": "High-Frequency Communication Between Two Parties", "description": "Detects unusually frequent calls or messages between two numbers within a short time window.", "created_at": "2025-08-09T00:00:00Z", "modified_at": "2025-08-09T00:00:00Z", "version": "1.0", "rule_type": "Rule", "data_source": "CDR", "required_fields": ["MOBILENUMBER", "B_MOBILENUMBER", "TRANSACTIONSTARTTIME"], "default_params": { "FREQUENCY_THRESHOLD": 50, "TIME_WINDOW_HOURS": 24 }, "tags": ["communication-pattern", "coordination"], "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, COUNT(*) AS TOTAL_CALLS FROM cdr WHERE TRANSACTIONSTARTTIME >= TIMESTAMPADD(HOUR, -$TIME_WINDOW_HOURS, CURRENT_TIMESTAMP) GROUP BY MOBILENUMBER, B_MOBILENUMBER HAVING TOTAL_CALLS > $FREQUENCY_THRESHOLD" },
-            { "rule_id": "R002", "name": "Unusual Call Duration", "description": "Detects abnormally long or short calls.", "created_at": "2025-08-09T00:00:00Z", "modified_at": "2025-08-09T00:00:00Z", "version": "1.0", "rule_type": "Rule", "data_source": "CDR", "required_fields": ["MOBILENUMBER", "B_MOBILENUMBER", "DURATION"], "default_params": { "MIN_DURATION_SEC": 3, "MAX_DURATION_SEC": 1200 }, "tags": ["anomaly-duration", "covert-communication"], "sql_template": "SELECT MOBILENUMBER, B_MOBILENUMBER, DURATION FROM cdr WHERE DURATION < $MIN_DURATION_SEC OR DURATION > $MAX_DURATION_SEC" },
-        ];
+            ];
 
         /* ---------- Navigation ---------- */
         const sections = {
@@ -207,6 +206,7 @@
             // Render with Prism
             const sqlBox = document.getElementById('sqlBox');
             sqlBox.textContent = formatted;
+            sqlBox.className = 'language-sql ext-gray-300 overflow-y-auto max-h-96';
             Prism.highlightElement(sqlBox);
         }
         // Utility: stream Ollama response into modal

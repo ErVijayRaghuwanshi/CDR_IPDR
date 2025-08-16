@@ -1,0 +1,66 @@
+
+
+services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql_server
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: my-secret-pw
+      MYSQL_DATABASE: my_database
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin123
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres_server
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: my_database
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  dbgate:
+    image: dbgate/dbgate
+    container_name: dbgate
+    restart: always
+    ports:
+      - "3000:3000" # Access DBGate at http://localhost:8080
+    volumes:
+      - dbgate-data:/root/.dbgate
+    environment:
+      CONNECTIONS: con1,con2
+
+      LABEL_con1: MySQL
+      SERVER_con1: mysql
+      USER_con1: admin
+      PASSWORD_con1: admin123
+      PORT_con1: 3306
+      ENGINE_con1: mysql@dbgate-plugin-mysql
+      DATABASE_con1: my_database
+
+      LABEL_con2: PostgreSQL
+      SERVER_con2: postgres
+      USER_con2: postgres
+      PASSWORD_con2: postgres
+      PORT_con2: 5432
+      ENGINE_con2: postgres@dbgate-plugin-postgres
+      DATABASE_con2: my_database
+    depends_on:
+      - mysql
+      - postgres
+
+
+volumes:
+  mysql_data:
+  postgres_data:
+  dbgate-data:
+    driver: local
