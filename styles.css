@@ -1,1 +1,34 @@
 /* @import "tailwindcss" */
+
+/* Flip container */
+.flip-container{
+  perspective:1000px;
+  width:100%;
+  height:24rem;              /* matches max-h-96 */
+  position:relative;         /* bind absolute children */
+}
+.flipper{
+  position:relative;
+  width:100%;
+  height:100%;
+  transition:transform .6s;
+  transform-style:preserve-3d;
+  will-change:transform;
+}
+.flip-container.flipped .flipper{ transform:rotateY(180deg); }
+
+/* Faces */
+.front,.back{
+  position:absolute;
+  top:0; left:0;
+  width:100%; height:100%;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;   /* Safari */
+  overflow-y:auto;                      /* scroll inside face */
+}
+.front{ transform:rotateY(0deg); z-index:2; }
+.back{  transform:rotateY(180deg); z-index:1; }
+
+/* Only the visible face should receive clicks */
+.flip-container:not(.flipped) .back{ pointer-events:none; }
+.flip-container.flipped .front{ pointer-events:none; }

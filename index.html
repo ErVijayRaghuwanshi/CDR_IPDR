@@ -10,6 +10,14 @@
     <!-- Add this in your HTML head or before your script -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
+    <!-- Prism CSS -->
+    <link href="https://unpkg.com/prismjs/themes/prism.css" rel="stylesheet" />
+    <script src="https://unpkg.com/prismjs/prism.js"></script>
+    <script src="https://unpkg.com/prismjs/components/prism-sql.min.js"></script>
+
+    <!-- SQL Formatter -->
+    <script src="https://unpkg.com/sql-formatter/dist/sql-formatter.min.js"></script>
+
     <!-- add css file -->
     <link rel="stylesheet" href="styles.css">
     <style>
@@ -108,16 +116,26 @@
 
     <!-- Modal for LLM Responses -->
     <div id="llm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center p-4">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-3xl w-full text-gray-200">
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-5xl w-full text-gray-200">
             <div class="flex justify-between items-center mb-4">
                 <h4 id="llm-title" class="text-2xl font-bold text-slate-100"></h4>
                 <button id="close-modal" class="text-gray-400 hover:text-gray-200 text-3xl">&times;</button>
             </div>
-            <div id="llm-content" class="text-gray-300 overflow-y-auto max-h-96"></div>
+            <!-- flex box in 2 columns -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h5 class="font-semibold text-slate-300"></h5>
+                    <div id="llm-content" class="text-gray-300 overflow-y-auto max-h-96"></div>
+                </div>
+                <div>
+                    <h5 class="font-semibold text-slate-300">SQL Query</h5>
+                    <pre class="line-numbers"><code id="sqlBox" class="language-sql"></code></pre>
+                </div>
+            </div>
+
+            </div>
         </div>
     </div>
-
-
 
     <script>
         /* ---------- Data ---------- */
@@ -168,12 +186,29 @@
 
         closeModalButton.addEventListener('click', () => llmModal.classList.add('hidden'));
 
-        const showModal = (title, markdownContent) => {
+        const showModal = (title, markdownContent, default_params, sql_template) => {
             llmTitle.textContent = title;
             const htmlContent = marked.parse(markdownContent || '');
             llmContent.innerHTML = htmlContent;
             llmModal.classList.remove('hidden');
+            
         };
+
+        async function sql_render(input) {
+            // Replace placeholders in template
+            let sql = input.sql_template;
+            for (const [key, value] of Object.entries(input.default_params)) {
+                sql = sql.replace(new RegExp("\\$" + key, "g"), value);
+            }
+
+            // Format SQL
+            const formatted = sqlFormatter.format(sql, { language: 'sql' });
+
+            // Render with Prism
+            const sqlBox = document.getElementById('sqlBox');
+            sqlBox.textContent = formatted;
+            Prism.highlightElement(sqlBox);
+        }
         // Utility: stream Ollama response into modal
         async function streamOllamaResponse(title, payload) {
             const res = await fetch("http://localhost:11434/api/generate", {
@@ -221,19 +256,20 @@
             const btn = document.getElementById(`explain-rule-${rule.rule_id}`);
             const original = btn ? btn.textContent : null;
             if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
-                const system = `You are an advanced security intelligence analysis system, working to assist 
+            const system = `You are an advanced security intelligence analysis system, working to assist 
     national security and specialized law enforcement agencies such as the National Investigation Agency (NIA),
     Anti-Terrorism Squad (ATS), Technical Analysis Special Knowledge (TASK), and the Research & Analysis Wing (RAW).
     Your purpose is to help investigators, analysts, and law enforcement officers understand security rules, 
     identify threats, and support lawful counterterrorism and cybercrime operations. Provide responses that 
-    are clear, actionable, and focused on national security priorities.`;
+    are clear, actionable, and focused on national security priorities. Note: your response should be in Markdown format.`
 
-    const prompt = `Explain the purpose of this security rule in simple, non-technical terms.
+            const prompt = `Explain the purpose of this security rule in simple, non-technical terms.
 The rule's name is "${rule.name}" and its description is "${rule.description}".
 It uses the following SQL template: "${rule.sql_template}".
 Focus on what the rule is designed to detect and why it's important.`;
 
             try {
+                sql_render({ default_params: rule.default_params, sql_template: rule.sql_template });
                 await streamOllamaResponse(`Explanation for ${rule.rule_id} (${rule.name})`, { model: model, prompt, system });
             } catch (e) {
                 console.error(e);
@@ -248,7 +284,7 @@ Focus on what the rule is designed to detect and why it's important.`;
             const original = btn ? btn.textContent : null;
             if (btn) { btn.textContent = 'Analyzing...'; btn.disabled = true; }
 
-                const system = `You are an advanced security intelligence analysis system assisting 
+            const system = `You are an advanced security intelligence analysis system assisting 
     national security and specialized law enforcement agencies such as the National Investigation Agency (NIA),
     Anti-Terrorism Squad (ATS), Technical Analysis Special Knowledge (TASK), and the Research & Analysis Wing (RAW).
     Your role is to help investigators, analysts, and law enforcement officers assess potential threats, 
@@ -270,21 +306,6 @@ Briefly summarize potential risks, telltale patterns, and simple next steps.`;
             }
         };
 
-
-        /* ---------- Rendering ---------- */
-        // function bindRuleButtons(list) {
-        //     list.forEach(rule => {
-        //         const el = document.getElementById(`explain-rule-${rule.rule_id}`);
-        //         if (el) el.addEventListener('click', () => explainRule(rule));
-        //     });
-        // }
-
-        // function bindTargetButtons(list) {
-        //     list.forEach(target => {
-        //         const el = document.getElementById(`analyze-target-${target.target_id}`);
-        //         if (el) el.addEventListener('click', () => analyzeTarget(target));
-        //     });
-        // }
 
 
         function bindRuleButtons(list) {
