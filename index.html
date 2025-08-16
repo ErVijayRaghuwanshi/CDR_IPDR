@@ -100,7 +100,10 @@
             <div class="bg-slate-800 p-6 rounded-lg shadow-md">
                 <input type="text" id="rules-search" placeholder="Search rules..."
                     class="w-full p-2 border border-slate-600 rounded-md mb-4 bg-slate-900 text-gray-200 placeholder-gray-500">
-                <div id="rules-list" class="overflow-x-auto"></div>
+                <!-- FIXME: overflow scrollable -->
+                <div id="rules-list" class="overflow-y-auto max-h-96"></div>
+
+                <!-- <div id="rules-list" class="overflow-x-auto"></div> -->
             </div>
         </section>
 
@@ -109,7 +112,7 @@
             <div class="bg-slate-800 p-6 rounded-lg shadow-md">
                 <input type="text" id="targets-search" placeholder="Search targets..."
                     class="w-full p-2 border border-slate-600 rounded-md mb-4 bg-slate-900 text-gray-200 placeholder-gray-500">
-                <div id="targets-list" class="overflow-x-auto"></div>
+                <div id="targets-list" class="overflow-y-auto max-h-96"></div>
             </div>
         </section>
     </div>
@@ -130,12 +133,13 @@
                 </div>
                 <div>
                     <h5 class="font-semibold text-slate-300">SQL Query</h5>
-                    <pre class="line-numbers"><code id="sqlBox" class="language-sql ext-gray-300 overflow-y-auto max-h-96"></code></pre>
+                    <pre
+                        class="line-numbers"><code id="sqlBox" class="language-sql ext-gray-300 overflow-y-auto max-h-96"></code></pre>
                 </div>
             </div>
 
-            </div>
         </div>
+    </div>
     </div>
 
     <script>
@@ -154,7 +158,7 @@
         ];
 
         const rules = [
-            ];
+        ];
 
         /* ---------- Navigation ---------- */
         const sections = {
@@ -190,7 +194,7 @@
             const htmlContent = marked.parse(markdownContent || '');
             llmContent.innerHTML = htmlContent;
             llmModal.classList.remove('hidden');
-            
+
         };
 
         async function sql_render(input) {
@@ -356,8 +360,8 @@ Briefly summarize potential risks, telltale patterns, and simple next steps.`;
         <td class="py-3 px-6">${(rule.tags || []).join(', ')}</td>
         <td class="py-3 px-6 text-center">
           <button id="explain-rule-${rule.rule_id}" 
-            class="bg-slate-500 hover:bg-slate-700 text-white font-bold py-1 px-3 rounded-lg transition duration-300">
-            Explain Rule ✨
+            class="bg-slate-500 hover:bg-blue-700 text-white  font-bold py-1 px-3 rounded-lg transition duration-300 whitespace-nowrap">
+            Explain ✨
           </button>
         </td>
       </tr>
